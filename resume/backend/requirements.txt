@@ -1,0 +1,11 @@
+flask>=2.3.0
+flask-cors>=4.0.0
+langgraph>=0.6.0
+langchain>=0.3.0
+langchain-openai>=0.3.0
+langsmith>=0.4.0
+openai>=1.100.0
+pymupdf>=1.23.0
+rapidfuzz>=3.5.0
+python-dotenv>=1.0.0
+requests>=2.31.0
