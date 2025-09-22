@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { analyzeResume, healthCheck } from '../utils/apiClient';
+import { analyzeResumeComplete, healthCheck } from '../utils/apiClient';
 
 const SkillMatcherDashboard = ({ user, onLogout }) => {
   const [resumeFile, setResumeFile] = useState(null);
@@ -14,13 +14,26 @@ const SkillMatcherDashboard = ({ user, onLogout }) => {
   const [pdfStatus, setPdfStatus] = useState('ready');
   const [backendStatus, setBackendStatus] = useState('checking');
   const [error, setError] = useState(null);
-  const [useAdvancedAI, setUseAdvancedAI] = useState(true);
   const fileInputRef = useRef(null);
 
   // Check backend health on component mount
   useEffect(() => {
-    checkBackendHealth();
-  }, []);
+    const checkHealth = async () => {
+      try {
+        setBackendStatus('checking');
+        const health = await healthCheck();
+        setBackendStatus('connected');
+        if (debugMode) {
+          console.log('Backend health check:', health);
+        }
+      } catch (error) {
+        setBackendStatus('disconnected');
+        setError(`Backend connection failed: ${error.message}`);
+        console.error('Backend health check failed:', error);
+      }
+    };
+    checkHealth();
+  }, [debugMode]);
 
   const checkBackendHealth = async () => {
     try {
@@ -37,10 +50,10 @@ const SkillMatcherDashboard = ({ user, onLogout }) => {
     }
   };
 
-  // Get the final resume text based on input mode
-  const getFinalResumeText = () => {
-    return useManualInput ? manualResumeText : resumeText;
-  };
+  // Get the final resume text based on input mode (currently unused but kept for future use)
+  // const getFinalResumeText = () => {
+  //   return useManualInput ? manualResumeText : resumeText;
+  // };
 
   // Handle file upload
   const handleFileUpload = async (event) => {
@@ -229,16 +242,13 @@ const SkillMatcherDashboard = ({ user, onLogout }) => {
     
     try {
       if (debugMode) {
-        console.log('Starting analysis with backend API...');
+        console.log('Starting analysis with custom AI backend...');
         console.log('File:', fileToAnalyze.name, 'Size:', fileToAnalyze.size);
         console.log('Job description length:', jobDescription.length);
-        console.log('Using advanced AI:', useAdvancedAI);
       }
       
-      const results = await analyzeResume(fileToAnalyze, jobDescription, {
-        useAdvancedAI,
-        includeRecommendations: true
-      });
+      // Use the complete analysis workflow
+      const results = await analyzeResumeComplete(fileToAnalyze, jobDescription);
       
       if (debugMode) {
         console.log('Analysis results:', results);
@@ -427,25 +437,8 @@ const SkillMatcherDashboard = ({ user, onLogout }) => {
             </p>
           </div>
 
-          {/* Advanced AI Toggle */}
-          {backendStatus === 'connected' && (
-            <div className="ai-toggle-section">
-              <label className="ai-toggle">
-                <input
-                  type="checkbox"
-                  checked={useAdvancedAI}
-                  onChange={(e) => setUseAdvancedAI(e.target.checked)}
-                />
-                <span className="ai-toggle-text">
-                  🤖 Use Advanced AI Analysis (LangGraph + OpenAI)
-                </span>
-              </label>
-              <p className="ai-toggle-description">
-                Enable advanced AI for deeper insights, better skill extraction, and intelligent recommendations.
-                {!useAdvancedAI && " (Currently using basic analysis)"}
-              </p>
-            </div>
-          )}
+          {/* AI Toggle - Removed since we're using custom AI */}
+          {/* Custom AI is always enabled now */}
 
           <div className="action-buttons">
             <button
@@ -458,11 +451,7 @@ const SkillMatcherDashboard = ({ user, onLogout }) => {
               }
               className="analyze-btn"
             >
-              {isAnalyzing ? (
-                useAdvancedAI ? 'AI Analysis in Progress...' : 'Analyzing Skills...'
-              ) : (
-                useAdvancedAI ? '🤖 Analyze with AI' : '⚡ Quick Analysis'
-              )}
+              {isAnalyzing ? 'Analyzing Skills...' : '🎯 Analyze Skills'}
             </button>
             <button onClick={handleReset} className="reset-btn">
               Reset All
