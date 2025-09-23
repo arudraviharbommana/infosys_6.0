@@ -50,7 +50,7 @@ app = Flask(__name__)
 
 # Get configuration from environment
 HOST = os.getenv('HOST', '0.0.0.0')
-PORT = int(os.getenv('PORT', 5001))
+PORT = int(os.getenv('PORT', 5002))
 FLASK_ENV = os.getenv('FLASK_ENV', 'development')
 DEBUG_MODE = os.getenv('DEBUG_MODE', 'true').lower() == 'true'
 
