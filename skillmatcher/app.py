@@ -1,14 +1,14 @@
-# app.py
-import streamlit as st
+from flask import Flask, request, jsonify
 import spacy
-
-# Import functions from your modules
 from extraction import extract_text_and_layout, find_skill_section, extract_skills_from_text
 from matching import semantic_similarity_score, overall_match_score, match_skills
 from suggestions import suggest_skills_for_jd
 from data import COMMON_SKILLS
+import base64
 
-# Try to load spaCy model; if not present, download it.
+app = Flask(__name__)
+
+# Load spaCy model at startup
 try:
     nlp = spacy.load("en_core_web_sm")
 except Exception:
@@ -16,49 +16,49 @@ except Exception:
     download("en_core_web_sm")
     nlp = spacy.load("en_core_web_sm")
 
-# Set a fixed fuzzy match threshold
-FUZZ_THRESHOLD = 60
+@app.route("/extract_skills", methods=["POST"])
+def api_extract_skills():
+    data = request.json
+    text = data.get("text", "")
+    top_n = int(data.get("top_n", 30))
+    skills = extract_skills_from_text(text, COMMON_SKILLS, top_n=top_n)
+    return jsonify({"skills": skills})
 
-# -------------------------
-# Streamlit App UI
-# -------------------------
-st.set_page_config(page_title="AI SkillMatcher - Resume vs JD", layout="wide")
-st.title("🤖 AI SkillMatcher — Resume ↔ Job Description Matching")
-st.markdown("""
-Upload a **Job Description** and a **Resume PDF**. 
-The app will extract skills, analyze text, and compute a match score.
-""")
+@app.route("/match_skills", methods=["POST"])
+def api_match_skills():
+    data = request.json
+    candidate_skills = data.get("candidate_skills", [])
+    job_skills = data.get("job_skills", [])
+    match = match_skills(candidate_skills, job_skills)
+    score = overall_match_score(candidate_skills, job_skills)
+    return jsonify({"matched_skills": match, "match_score": score})
 
-with st.sidebar:
-    st.header("⚙️ Settings")
-    top_k = st.number_input("Max skills to display", min_value=5, max_value=100, value=30)
-    st.markdown("---")
-    st.caption("Extend `COMMON_SKILLS` in `data.py` to add more skills.")
+@app.route("/suggest_skills", methods=["POST"])
+def api_suggest_skills():
+    data = request.json
+    jd_text = data.get("jd_text", "")
+    top_n = int(data.get("top_n", 10))
+    suggestions = suggest_skills_for_jd(jd_text, COMMON_SKILLS, top_n=top_n)
+    return jsonify({"suggested_skills": suggestions})
 
-col1, col2 = st.columns([2, 3])
+@app.route("/extract_resume_text", methods=["POST"])
+def api_extract_resume_text():
+    # Expects base64-encoded PDF bytes in 'pdf_base64'
+    data = request.json
+    pdf_base64 = data.get("pdf_base64", "")
+    if not pdf_base64:
+        return jsonify({"error": "Missing PDF data"}), 400
+    pdf_bytes = base64.b64decode(pdf_base64)
+    text, sections = extract_text_and_layout(pdf_bytes)
+    skill_section = find_skill_section(sections)
+    return jsonify({"text": text, "sections": sections, "skill_section": skill_section})
 
-with col1:
-    st.subheader("📋 Job Description")
-    jd_text = st.text_area("Paste JD text here", height=240)
-    if st.button("Auto-extract JD skills"):
-        if not jd_text.strip():
-            st.warning("Please paste a Job Description first.")
-        else:
-            jd_skills_found = extract_skills_from_text(jd_text, COMMON_SKILLS, top_n=100)
-            jd_skills_list = [s[0] for s in jd_skills_found]
-            st.success(f"Found {len(jd_skills_list)} skill candidates.")
-            st.write(jd_skills_list)
+@app.route("/skills_list", methods=["GET"])
+def api_skills_list():
+    return jsonify({"skills": COMMON_SKILLS})
 
-with col2:
-    st.subheader("📄 Upload Resume (PDF)")
-    uploaded_file = st.file_uploader("Upload resume PDF", type=["pdf"])
-    show_layout = st.checkbox("Show layout analysis", value=True)
-
-if uploaded_file:
-    pdf_bytes = uploaded_file.read()
-    with st.spinner("Extracting text and analyzing layout..."):
-        resume_text, sections = extract_text_and_layout(pdf_bytes)
-        skill_section_text = find_skill_section(sections)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
     st.success("Resume processed successfully!")
 
     if show_layout:
