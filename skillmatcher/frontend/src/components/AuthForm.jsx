@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 const AuthForm = ({ isLogin, setIsLogin, onSubmit }) => {
   const [formData, setFormData] = useState({
+    username: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -18,7 +19,7 @@ const AuthForm = ({ isLogin, setIsLogin, onSubmit }) => {
     e.preventDefault();
     
     // Basic validation
-    if (!formData.email || !formData.password) {
+    if (!formData.email || !formData.password || !formData.username) {
       alert('Please fill in all fields');
       return;
     }
@@ -40,6 +41,17 @@ const AuthForm = ({ isLogin, setIsLogin, onSubmit }) => {
         </h2>
         
         <form onSubmit={handleSubmit} className="form">
+          <div className="form-group">
+            <input
+              type="text"
+              name="username"
+              placeholder="Username"
+              value={formData.username}
+              onChange={handleInputChange}
+              className="form-input"
+              required
+            />
+          </div>
           <div className="form-group">
             <input
               type="email"

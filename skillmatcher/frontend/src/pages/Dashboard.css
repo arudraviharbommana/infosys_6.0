@@ -1,0 +1,36 @@
+.dashboard-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+  background: #111;
+}
+
+.dashboard-container h1 {
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  color: #fff;
+}
+
+.dashboard-buttons {
+  display: flex;
+  gap: 2rem;
+}
+
+.dashboard-btn {
+  padding: 1.2rem 2.5rem;
+  font-size: 1.2rem;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #4f8cff 0%, #38b2ac 100%);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.dashboard-btn:hover {
+  background: linear-gradient(90deg, #38b2ac 0%, #4f8cff 100%);
+  transform: translateY(-2px) scale(1.04);
+}

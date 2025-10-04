@@ -8,6 +8,27 @@ import base64
 
 app = Flask(__name__)
 
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from pymongo import MongoClient
+import spacy
+import os
+from extraction import extract_text_and_layout, find_skill_section, extract_skills_from_text
+from matching import semantic_similarity_score, overall_match_score, match_skills
+from suggestions import suggest_skills_for_jd
+from data import COMMON_SKILLS
+import base64
+
+app = Flask(__name__)
+CORS(app)
+
+# MongoDB setup
+MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
+mongo_client = MongoClient(MONGO_URI)
+db = mongo_client['skillmatcher']
+users_col = db['users']
+history_col = db['analysis_history']
+
 # Load spaCy model at startup
 try:
     nlp = spacy.load("en_core_web_sm")
@@ -15,6 +36,67 @@ except Exception:
     from spacy.cli import download
     download("en_core_web_sm")
     nlp = spacy.load("en_core_web_sm")
+
+# User registration/login (simple demo, not secure)
+@app.route('/user', methods=['POST'])
+def user_register_or_login():
+    data = request.json
+    email = data.get('email')
+    username = data.get('username')
+    if not email or not username:
+        return jsonify({'error': 'Email and username required'}), 400
+    user = users_col.find_one({'email': email})
+    if not user:
+        users_col.insert_one({'email': email, 'username': username})
+        user = {'email': email, 'username': username}
+    return jsonify({'email': user['email'], 'username': user['username']})
+
+# Skill analysis endpoint
+@app.route('/analyze', methods=['POST'])
+def analyze_skills():
+    data = request.json
+    resume_text = data.get('resume_text', '')
+    jd_text = data.get('jd_text', '')
+    email = data.get('email')
+    if not resume_text or not jd_text or not email:
+        return jsonify({'error': 'Missing required fields'}), 400
+    # Extract skills
+    resume_skills = extract_skills_from_text(resume_text, COMMON_SKILLS, top_n=100)
+    jd_skills = extract_skills_from_text(jd_text, COMMON_SKILLS, top_n=100)
+    resume_skill_names = set([s[0] if isinstance(s, (list, tuple)) else s for s in resume_skills])
+    jd_skill_names = set([s[0] if isinstance(s, (list, tuple)) else s for s in jd_skills])
+    matched_skills = list(resume_skill_names & jd_skill_names)
+    missing_skills = list(jd_skill_names - resume_skill_names)
+    extra_skills = list(resume_skill_names - jd_skill_names)
+    recommendations = missing_skills
+    score = round(100 * len(matched_skills) / max(len(jd_skill_names), 1))
+    # Store in history
+    history_col.insert_one({
+        'email': email,
+        'resume_skills': list(resume_skill_names),
+        'jd_skills': list(jd_skill_names),
+        'matched_skills': matched_skills,
+        'missing_skills': missing_skills,
+        'extra_skills': extra_skills,
+        'recommendations': recommendations,
+        'score': score
+    })
+    return jsonify({
+        'matched_skills': matched_skills,
+        'missing_skills': missing_skills,
+        'extra_skills': extra_skills,
+        'recommendations': recommendations,
+        'score': score
+    })
+
+# Get user analysis history
+@app.route('/history', methods=['GET'])
+def get_history():
+    email = request.args.get('email')
+    if not email:
+        return jsonify({'error': 'Email required'}), 400
+    history = list(history_col.find({'email': email}, {'_id': 0}))
+    return jsonify({'history': history})
 
 @app.route("/extract_skills", methods=["POST"])
 def api_extract_skills():

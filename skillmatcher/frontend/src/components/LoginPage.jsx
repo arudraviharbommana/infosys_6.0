@@ -1,22 +1,30 @@
+
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ThreeDScene from './ThreeDScene';
 import AuthForm from './AuthForm';
 import '../styles/main.css';
+import { API_BASE_URL } from '../config';
 
 const LoginPage = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
+  const navigate = useNavigate();
 
-  const handleAuthSubmit = (formData) => {
-    // For demo purposes, just log the user in
-    console.log('Auth data:', formData);
-    
-    // Simulate successful authentication
-    const userData = {
-      email: formData.email,
-      isAuthenticated: true
-    };
-    
-    onLogin(userData);
+  const handleAuthSubmit = async (formData) => {
+    try {
+  const res = await fetch(`${API_BASE_URL}/user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, username: formData.username })
+      });
+      if (!res.ok) throw new Error('Login/Signup failed');
+      const userData = await res.json();
+      userData.isAuthenticated = true;
+      onLogin(userData);
+      navigate('/dashboard');
+    } catch (err) {
+      alert('Login/Signup failed: ' + err.message);
+    }
   };
 
   return (

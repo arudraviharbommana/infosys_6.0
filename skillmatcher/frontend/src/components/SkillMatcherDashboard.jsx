@@ -1,5 +1,7 @@
+
 import React, { useState, useRef } from 'react';
-import { performSkillMatching } from '../utils/skillProcessor';
+import { API_BASE_URL } from '../config';
+
 
 const SkillMatcherDashboard = ({ user, onLogout }) => {
   const [resumeFile, setResumeFile] = useState(null);
@@ -185,34 +187,24 @@ const SkillMatcherDashboard = ({ user, onLogout }) => {
   // Handle analysis
   const handleAnalysis = async () => {
     const finalResumeText = getFinalResumeText();
-    
     if (!finalResumeText.trim() || !jobDescription.trim()) {
       alert('Please provide both resume content and job description');
       return;
     }
-
     setIsAnalyzing(true);
-    
     try {
-      if (debugMode) {
-        console.log('Starting analysis...');
-        console.log('Resume text length:', finalResumeText.length);
-        console.log('Job description length:', jobDescription.length);
-        console.log('Sample resume text:', finalResumeText.substring(0, 200) + '...');
-      }
-      
-      // Simulate processing delay for better UX
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const results = performSkillMatching(finalResumeText, jobDescription);
-      
-      if (debugMode) {
-        console.log('Analysis results:', results);
-        console.log('Resume skills found:', results.resumeSkills.length);
-        console.log('Job skills found:', results.jobSkills.length);
-        console.log('Overall score:', results.overallScore);
-      }
-      
+      const user = JSON.parse(localStorage.getItem('skillmatcher_user'));
+  const res = await fetch(`${API_BASE_URL}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resume_text: finalResumeText,
+          jd_text: jobDescription,
+          email: user.email
+        })
+      });
+      if (!res.ok) throw new Error('Analysis failed');
+      const results = await res.json();
       setAnalysisResults(results);
     } catch (error) {
       console.error('Analysis error:', error);
@@ -243,7 +235,7 @@ const SkillMatcherDashboard = ({ user, onLogout }) => {
         <div className="header-content">
           <h1 className="dashboard-title">SkillMatcher Dashboard</h1>
           <div className="user-info">
-            <span>Welcome, {user.email}</span>
+            <span>Welcome, {user.username || user.email}</span>
             <label className="debug-toggle">
               <input
                 type="checkbox"
