@@ -12,10 +12,14 @@ const LoginPage = ({ onLogin }) => {
 
   const handleAuthSubmit = async (formData) => {
     try {
-  const res = await fetch(`${API_BASE_URL}/user`, {
+      const res = await fetch(`${API_BASE_URL}/user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formData.email, username: formData.username })
+        body: JSON.stringify({
+          email: formData.email,
+          username: formData.username,
+          password: formData.password
+        })
       });
       if (!res.ok) throw new Error('Login/Signup failed');
       const userData = await res.json();

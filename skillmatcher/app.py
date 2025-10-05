@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from pymongo import MongoClient
+from supabase_client import supabase
 import spacy
 import os
 from extraction import extract_text_and_layout, find_skill_section, extract_skills_from_text
@@ -22,12 +22,7 @@ import base64
 app = Flask(__name__)
 CORS(app)
 
-# MongoDB setup
-MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
-mongo_client = MongoClient(MONGO_URI)
-db = mongo_client['skillmatcher']
-users_col = db['users']
-history_col = db['analysis_history']
+
 
 # Load spaCy model at startup
 try:
@@ -43,13 +38,13 @@ def user_register_or_login():
     data = request.json
     email = data.get('email')
     username = data.get('username')
-    if not email or not username:
-        return jsonify({'error': 'Email and username required'}), 400
-    user = users_col.find_one({'email': email})
-    if not user:
-        users_col.insert_one({'email': email, 'username': username})
-        user = {'email': email, 'username': username}
-    return jsonify({'email': user['email'], 'username': user['username']})
+    password = data.get('password')
+    if not email or not username or not password:
+        return jsonify({'error': 'Email, username, and password required'}), 400
+    # Supabase: Upsert user (store password as plain text for demo; use hashing in production!)
+    user_data = {'email': email, 'username': username, 'password': password}
+    supabase.table('users').upsert(user_data).execute()
+    return jsonify({'email': email, 'username': username})
 
 # Skill analysis endpoint
 @app.route('/analyze', methods=['POST'])
@@ -70,8 +65,8 @@ def analyze_skills():
     extra_skills = list(resume_skill_names - jd_skill_names)
     recommendations = missing_skills
     score = round(100 * len(matched_skills) / max(len(jd_skill_names), 1))
-    # Store in history
-    history_col.insert_one({
+    # Supabase: Insert analysis history
+    history_data = {
         'email': email,
         'resume_skills': list(resume_skill_names),
         'jd_skills': list(jd_skill_names),
@@ -80,7 +75,8 @@ def analyze_skills():
         'extra_skills': extra_skills,
         'recommendations': recommendations,
         'score': score
-    })
+    }
+    supabase.table('analysis_history').insert(history_data).execute()
     return jsonify({
         'matched_skills': matched_skills,
         'missing_skills': missing_skills,
@@ -95,7 +91,9 @@ def get_history():
     email = request.args.get('email')
     if not email:
         return jsonify({'error': 'Email required'}), 400
-    history = list(history_col.find({'email': email}, {'_id': 0}))
+    # Supabase: Fetch analysis history for user
+    response = supabase.table('analysis_history').select('*').eq('email', email).execute()
+    history = response.data if hasattr(response, 'data') else []
     return jsonify({'history': history})
 
 @app.route("/extract_skills", methods=["POST"])
@@ -141,65 +139,3 @@ def api_skills_list():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-    st.success("Resume processed successfully!")
-
-    if show_layout:
-        st.markdown("### 📝 Layout Analysis")
-        st.info("Sample detected lines (top 40):")
-        sample_lines = [s["text"] for s in sections[:40]]
-        st.json(sample_lines)
-
-    st.markdown("### 🎯 Detected 'Skills' Area")
-    if skill_section_text:
-        st.info(skill_section_text[:1000] + "...")
-    else:
-        st.warning("No explicit 'Skills' heading detected. Searching the entire resume text.")
-
-    if not jd_text.strip():
-        st.warning("Please paste JD text to enable skill matching.")
-    else:
-        # Extract skills from JD
-        jd_candidates = extract_skills_from_text(jd_text, COMMON_SKILLS, top_n=100)
-        jd_skills_list = [s[0] for s in jd_candidates]
-        st.markdown("---")
-        st.markdown("### 🔍 JD Skills (from vocabulary)")
-        if not jd_skills_list:
-            st.warning("No skills detected from the JD using the built-in vocabulary.")
-        else:
-            st.write(jd_skills_list)
-        
-        # Extract skills from Resume
-        resume_search_text = skill_section_text if skill_section_text else resume_text
-        res_found = extract_skills_from_text(resume_search_text, COMMON_SKILLS, top_n=200)
-        res_filtered = [r for r in res_found if r[2] >= FUZZ_THRESHOLD]
-        st.markdown("---")
-        st.markdown("### ✨ Skills Found in Resume")
-        if res_filtered:
-            st.table([{"Skill": r[0], "Matched Text": r[1], "Score": r[2]} for r in res_filtered[:top_k]])
-        else:
-            st.write("No skills found above the threshold.")
-
-        # Match and Score
-        st.markdown("---")
-        st.markdown("### ➡️ JD ↔ Resume Skill Match Summary")
-        summary_rows = match_skills(jd_skills_list, res_found, resume_text, FUZZ_THRESHOLD)
-        st.table(summary_rows)
-
-        sem_score = semantic_similarity_score(jd_text, resume_text)
-        overall_score = overall_match_score(jd_skills_list, res_found, jd_text, resume_text, FUZZ_THRESHOLD)
-
-        st.markdown("---")
-        st.markdown("## 📊 Overall Match Score")
-        st.metric(label="Match Score", value=f"{overall_score:.1f}%")
-        st.write(f"_(Semantic similarity: {sem_score:.2f}%)_")
-        
-        # Call the new function to get suggestions
-        suggested_skills = suggest_skills_for_jd(jd_skills_list, res_found, FUZZ_THRESHOLD)
-
-        st.markdown("### 💡 Suggestions")
-        if suggested_skills:
-            st.info("To improve your match score, consider adding these skills to your resume:")
-            st.table({"Suggested Skills": suggested_skills})
-            st.write("Tip: Even if you have minimal experience, listing these skills can significantly improve your match score and attract the recruiter's attention.")
-        else:
-            st.success("Your resume covers all the key skills detected in the JD. Excellent!")
