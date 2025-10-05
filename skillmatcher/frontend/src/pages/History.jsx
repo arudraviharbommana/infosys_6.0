@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './History.css';
+import { API_BASE_URL } from '../config';
 
 const History = () => {
   const [selectedResume, setSelectedResume] = useState(null);
@@ -11,7 +13,7 @@ const History = () => {
     // Get user from localStorage
     const user = JSON.parse(localStorage.getItem('skillmatcher_user'));
     if (!user) return;
-    fetch(`http://localhost:5000/history?email=${encodeURIComponent(user.email)}`)
+  fetch(`${API_BASE_URL}/history?email=${encodeURIComponent(user.email)}`)
       .then(res => res.json())
       .then(data => setHistory(data.history || []))
       .catch(() => setHistory([]));

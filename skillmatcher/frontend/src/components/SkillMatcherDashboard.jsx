@@ -194,7 +194,7 @@ const SkillMatcherDashboard = ({ user, onLogout }) => {
     setIsAnalyzing(true);
     try {
       const user = JSON.parse(localStorage.getItem('skillmatcher_user'));
-  const res = await fetch(`${API_BASE_URL}/analyze`, {
+      const res = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
